@@ -53,53 +53,32 @@ except ImportError as e:
 # ASP Installation for Cloud Deployment
 def setup_asp_for_cloud():
     """Setup ASP binaries for cloud deployment"""
-    asp_dir = "/tmp/asp"
-    asp_bin_dir = os.path.join(asp_dir, "bin")
+    # Check if ASP tools are available in system
+    asp_tools = ['aster2asp', 'stereo', 'point2dem', 'pc_align']
+    available_tools = []
     
-    if not os.path.exists(asp_bin_dir):
-        st.info("🔧 Setting up ASP for cloud deployment...")
-        
-        try:
-            # Create ASP directory
-            os.makedirs(asp_dir, exist_ok=True)
-            
-            # Download ASP
-            asp_url = "https://github.com/NeoGeographyToolkit/StereoPipeline/releases/download/3.6.0-alpha/StereoPipeline-3.6.0-alpha-2025-08-05-x86_64-Linux.tar.bz2"
-            asp_archive = "/tmp/asp.tar.bz2"
-            
-            with st.spinner("Downloading ASP (this may take a few minutes)..."):
-                result = subprocess.run(['wget', '-O', asp_archive, asp_url], 
-                                      capture_output=True, text=True, timeout=600)
-                
-                if result.returncode != 0:
-                    st.error(f"Failed to download ASP: {result.stderr}")
-                    return False
-            
-            # Extract ASP
-            with st.spinner("Extracting ASP..."):
-                result = subprocess.run(['tar', '-xjf', asp_archive, '-C', '/tmp'], 
-                                      capture_output=True, text=True, timeout=300)
-                
-                if result.returncode != 0:
-                    st.error(f"Failed to extract ASP: {result.stderr}")
-                    return False
-            
-            # Move extracted files
-            extracted_dir = glob.glob("/tmp/StereoPipeline-*")[0]
-            shutil.move(extracted_dir, asp_dir.replace('/asp', '/asp_extracted'))
-            shutil.move('/tmp/asp_extracted', asp_dir)
-            
-            st.success("✅ ASP setup completed!")
-            
-        except Exception as e:
-            st.error(f"ASP setup failed: {str(e)}")
-            return False
+    for tool in asp_tools:
+        if shutil.which(tool):
+            available_tools.append(tool)
     
-    # Add to PATH
-    if asp_bin_dir not in os.environ.get('PATH', ''):
-        os.environ['PATH'] = f"{asp_bin_dir}:{os.environ.get('PATH', '')}"
+    if len(available_tools) == len(asp_tools):
+        st.success("✅ ASP tools found in system PATH")
+        return True
     
-    return True
+    # If not available, show demo mode message
+    st.warning("⚠️ ASP tools not available in cloud environment")
+    st.info("""
+    **Demo Mode**: This app demonstrates the DEM processing workflow interface.
+    
+    **For full functionality:**
+    - Deploy on a system with ASP pre-installed
+    - Use local installation with Docker
+    - Consider alternative cloud platforms (Heroku, Railway, etc.)
+    
+    **Current Status**: Interface demonstration only
+    """)
+    
+    return False
 
 # Page configuration
 st.set_page_config(
@@ -717,8 +696,44 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         
         # Setup ASP for cloud deployment
         if not setup_asp_for_cloud():
-            st.error("Failed to setup ASP tools")
-            return None
+            # Demo mode - show simulated processing
+            st.info("🎭 **Demo Mode**: Simulating DEM processing workflow...")
+            
+            # Simulate processing steps
+            import time
+            
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            steps = [
+                ("Extracting ASTER L1A data...", 0.2),
+                ("Converting ASTER to ASP format...", 0.4), 
+                ("Running stereo processing...", 0.7),
+                ("Generating DEM...", 0.9),
+                ("Processing complete!", 1.0)
+            ]
+            
+            for step_text, progress in steps:
+                status_text.text(step_text)
+                progress_bar.progress(progress)
+                time.sleep(1)
+            
+            # Create a demo output file
+            demo_output = os.path.join(output_dir, f"demo_dem_{base_name}.txt")
+            with open(demo_output, 'w') as f:
+                f.write(f"Demo DEM output for {base_name}\n")
+                f.write("This is a demonstration of the DEM processing workflow.\n")
+                f.write("In a full deployment with ASP tools, this would be a GeoTIFF DEM file.\n")
+            
+            st.success("✅ Demo processing completed!")
+            st.download_button(
+                "📥 Download Demo Output",
+                data=open(demo_output, 'r').read(),
+                file_name=f"demo_dem_{base_name}.txt",
+                mime="text/plain"
+            )
+            
+            return demo_output
         
         # Run aster2asp
         aster2asp_cmd = f"aster2asp {extract_dir}/*.tif -o {asp_output_dir}/asp"
