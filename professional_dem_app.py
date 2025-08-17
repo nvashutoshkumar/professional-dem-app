@@ -822,7 +822,7 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
             st.error("❌ Camera files are required for stereo processing")
             return None
         
-        stereo_cmd = f"stereo {band3n_files[0]} {band3b_files[0]} {camera3n_files[0]} {camera3b_files[0]} {stereo_dir}/stereo"
+        stereo_cmd = f"stereo {band3n_files[0]} {band3b_files[0]} {camera3n_files[0]} {camera3b_files[0]} {stereo_dir}/stereo -t aster --stereo-algorithm asp_bm --subpixel-mode 1"
         st.code(f"Running: {stereo_cmd}")
         
         result = subprocess.run(stereo_cmd, shell=True, capture_output=True, text=True, timeout=3600, env=env)
@@ -846,7 +846,7 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         
         # Use the EXACT same point2dem command as your working script
         dem_output = os.path.join(output_dir, f"dem_{base_name}")
-        point2dem_cmd = f"point2dem {point_cloud} -o {dem_output} --tr {resolution}"
+        point2dem_cmd = f"point2dem {point_cloud} -o {dem_output} --tr {resolution} --t_srs EPSG:4326"
         st.code(f"Running: {point2dem_cmd}")
         
         result = subprocess.run(point2dem_cmd, shell=True, capture_output=True, text=True, timeout=1800, env=env)
