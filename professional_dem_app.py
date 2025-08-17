@@ -26,13 +26,29 @@ import subprocess
 import shutil
 import pandas as pd
 import numpy as np
-import rasterio
 import folium
 from streamlit_folium import st_folium
 import plotly.express as px
 import plotly.graph_objects as go
 from pathlib import Path
 import json
+
+# Handle GDAL import gracefully for cloud deployment
+try:
+    import rasterio
+    from rasterio.merge import merge
+    from rasterio.warp import transform_bounds
+    RASTERIO_AVAILABLE = True
+except ImportError as e:
+    st.warning(f"Rasterio not available: {e}. Some features may be limited.")
+    RASTERIO_AVAILABLE = False
+
+try:
+    import geopandas as gpd
+    GEOPANDAS_AVAILABLE = True
+except ImportError as e:
+    st.warning(f"GeoPandas not available: {e}. Some features may be limited.")
+    GEOPANDAS_AVAILABLE = False
 
 # ASP Installation for Cloud Deployment
 def setup_asp_for_cloud():
@@ -657,6 +673,11 @@ def process_end_to_end(uploaded_files, resolution, merge_option, coreg_method, v
 def run_asp_processing(file_path, output_dir, resolution, coord_system, algorithm, subpixel, filter_mode):
     """Run ASP processing - cloud deployment ready"""
     try:
+        # Check for required dependencies
+        if not RASTERIO_AVAILABLE:
+            st.error("🚫 Rasterio not available. This is required for DEM processing.")
+            st.info("This is likely due to GDAL installation issues in the cloud environment.")
+            return None
         zip_filename = os.path.basename(file_path)
         base_name = os.path.splitext(zip_filename)[0]
         
