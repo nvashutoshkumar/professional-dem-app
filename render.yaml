@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: professional-dem-app
+    env: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: OPENTOPOGRAPHY_API_KEY
+        value: 523da07408e277366b4b10399fc41d99
+      - key: PORT
+        value: 8501
+    healthCheckPath: /_stcore/health
+    disk:
+      name: dem-data
+      mountPath: /app/data
+      sizeGB: 10
