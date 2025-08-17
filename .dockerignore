@@ -1,0 +1,64 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git
+.mypy_cache
+.pytest_cache
+.hypothesis
+
+# Virtual environments
+aster_dem_env/
+venv/
+ENV/
+
+# Data files (too large for Docker build context)
+*.zip
+*.tif
+*.tiff
+*.hdf
+*.h5
+DEM/
+output/
+temp/
+extracted/
+asp_work/
+
+# ASP setup (will be installed in Docker)
+ASP_setup/
+StereoPipeline*/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation (except essential)
+*.md
+!README.md
+!DEPLOYMENT_GUIDE.md
+
+# Logs
+*.log
