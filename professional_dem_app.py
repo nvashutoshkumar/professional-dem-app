@@ -735,12 +735,41 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
             
             return demo_output
         
-        # Run aster2asp
+        # Run aster2asp with better error handling
         aster2asp_cmd = f"aster2asp {extract_dir}/*.tif -o {asp_output_dir}/asp"
-        result = subprocess.run(aster2asp_cmd, shell=True, capture_output=True, text=True, timeout=1800)
+        st.code(f"Running: {aster2asp_cmd}")
+        
+        # Set up environment for ASP tools
+        env = os.environ.copy()
+        env['DISPLAY'] = ':99'
+        env['QT_QPA_PLATFORM'] = 'offscreen'
+        env['LIBGL_ALWAYS_INDIRECT'] = '1'
+        
+        result = subprocess.run(aster2asp_cmd, shell=True, capture_output=True, text=True, timeout=1800, env=env)
         
         if result.returncode != 0:
-            st.error(f"aster2asp failed: {result.stderr}")
+            st.error(f"❌ aster2asp failed with return code: {result.returncode}")
+            st.error(f"**Error output:**\n```\n{result.stderr}\n```")
+            if result.stdout:
+                st.info(f"**Standard output:**\n```\n{result.stdout}\n```")
+            
+            # Try to diagnose the issue
+            st.info("🔍 **Diagnostic Information:**")
+            
+            # Check if ASP tools are accessible
+            asp_check = subprocess.run("which aster2asp", shell=True, capture_output=True, text=True)
+            if asp_check.returncode == 0:
+                st.success(f"✅ aster2asp found at: {asp_check.stdout.strip()}")
+            else:
+                st.error("❌ aster2asp not found in PATH")
+            
+            # Check library dependencies
+            ldd_check = subprocess.run("ldd $(which aster2asp) | grep 'not found'", shell=True, capture_output=True, text=True)
+            if ldd_check.stdout:
+                st.error(f"❌ Missing libraries:\n```\n{ldd_check.stdout}\n```")
+            else:
+                st.success("✅ All required libraries found")
+            
             return None
         
         st.success("✅ ASTER to ASP conversion completed")
@@ -759,7 +788,7 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         os.makedirs(stereo_dir, exist_ok=True)
         
         stereo_cmd = f"stereo -t aster --stereo-algorithm {algorithm} --subpixel-mode {subpixel} {band3n_files[0]} {band3b_files[0]} {stereo_dir}/stereo"
-        result = subprocess.run(stereo_cmd, shell=True, capture_output=True, text=True, timeout=3600)
+        result = subprocess.run(stereo_cmd, shell=True, capture_output=True, text=True, timeout=3600, env=env)
         
         if result.returncode != 0:
             st.error(f"Stereo processing failed: {result.stderr}")
@@ -778,7 +807,7 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         dem_output = os.path.join(output_dir, f"dem_{base_name}")
         point2dem_cmd = f"point2dem {point_cloud} -o {dem_output} --tr {resolution} --t_srs {target_srs} --nodata-value -9999.0"
         
-        result = subprocess.run(point2dem_cmd, shell=True, capture_output=True, text=True, timeout=1800)
+        result = subprocess.run(point2dem_cmd, shell=True, capture_output=True, text=True, timeout=1800, env=env)
         
         if result.returncode != 0:
             st.error(f"point2dem failed: {result.stderr}")
