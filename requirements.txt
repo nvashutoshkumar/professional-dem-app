@@ -9,5 +9,5 @@ requests>=2.28.0
 geopandas==1.1.1
 shapely==2.1.1
 fiona==1.10.1
-pyproj==3.7.2
+pyproj==3.7.1
 sliderule==4.10.0
