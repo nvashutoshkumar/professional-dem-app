@@ -748,11 +748,8 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         aster2asp_cmd = f"aster2asp {extract_dir} -o {asp_output_dir}/asp"
         st.code(f"Running: {aster2asp_cmd}")
         
-        # Set up environment for ASP tools
+        # Simple environment setup like your working script
         env = os.environ.copy()
-        env['DISPLAY'] = ':99'
-        env['QT_QPA_PLATFORM'] = 'offscreen'
-        env['LIBGL_ALWAYS_INDIRECT'] = '1'
         
         result = subprocess.run(aster2asp_cmd, shell=True, capture_output=True, text=True, timeout=1800, env=env)
         
@@ -819,8 +816,13 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         stereo_dir = os.path.join(work_dir, "stereo")
         os.makedirs(stereo_dir, exist_ok=True)
         
-        # Build stereo command with proper parameters
-        stereo_cmd = f"stereo {band3n_files[0]} {band3b_files[0]} {stereo_dir}/stereo -t aster --stereo-algorithm {algorithm} --subpixel-mode {subpixel}"
+        # Use the EXACT same stereo command as your working script
+        # stereo {left_image} {right_image} {left_camera} {right_camera} {output_prefix}
+        if not camera3n_files or not camera3b_files:
+            st.error("❌ Camera files are required for stereo processing")
+            return None
+        
+        stereo_cmd = f"stereo {band3n_files[0]} {band3b_files[0]} {camera3n_files[0]} {camera3b_files[0]} {stereo_dir}/stereo"
         st.code(f"Running: {stereo_cmd}")
         
         result = subprocess.run(stereo_cmd, shell=True, capture_output=True, text=True, timeout=3600, env=env)
@@ -830,20 +832,7 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
             st.error(f"**Error output:**\n```\n{result.stderr}\n```")
             if result.stdout:
                 st.info(f"**Standard output:**\n```\n{result.stdout}\n```")
-            
-            # Try with simpler parameters as fallback
-            st.warning("⚠️ Trying with simplified stereo parameters...")
-            stereo_cmd_simple = f"stereo {band3n_files[0]} {band3b_files[0]} {stereo_dir}/stereo"
-            st.code(f"Trying: {stereo_cmd_simple}")
-            
-            result = subprocess.run(stereo_cmd_simple, shell=True, capture_output=True, text=True, timeout=3600, env=env)
-            
-            if result.returncode != 0:
-                st.error(f"❌ Stereo processing failed with simplified parameters too")
-                st.error(f"**Error output:**\n```\n{result.stderr}\n```")
-                return None
-            else:
-                st.success("✅ Simplified stereo approach worked!")
+            return None
         
         st.success("✅ Stereo processing completed")
         
@@ -855,8 +844,10 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
             st.error("Point cloud file not found")
             return None
         
+        # Use the EXACT same point2dem command as your working script
         dem_output = os.path.join(output_dir, f"dem_{base_name}")
-        point2dem_cmd = f"point2dem {point_cloud} -o {dem_output} --tr {resolution} --t_srs {target_srs} --nodata-value -9999.0"
+        point2dem_cmd = f"point2dem {point_cloud} -o {dem_output} --tr {resolution}"
+        st.code(f"Running: {point2dem_cmd}")
         
         result = subprocess.run(point2dem_cmd, shell=True, capture_output=True, text=True, timeout=1800, env=env)
         
