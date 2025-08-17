@@ -3,6 +3,11 @@
 
 FROM ubuntu:22.04
 
+# Add UbuntuGIS PPA for GDAL 3.8.1 to match working environment
+RUN apt-get update && apt-get install -y software-properties-common \
+    && add-apt-repository ppa:ubuntugis/ppa \
+    && apt-get update
+
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
@@ -55,9 +60,12 @@ RUN apt-get update && apt-get install -y \
 # Start virtual display for headless operation
 RUN echo '#!/bin/bash\nXvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &\nexec "$@"' > /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
-# Install Python packages
+# Install Python packages with exact versions to match working environment
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
+
+# Verify GDAL version matches working environment
+RUN gdal-config --version && python3 -c "import rasterio; print(f'Rasterio: {rasterio.__version__}'); print(f'GDAL: {rasterio.__gdal_version__}')"
 
 # Download and install NASA Ames Stereo Pipeline (ASP)
 WORKDIR /opt
