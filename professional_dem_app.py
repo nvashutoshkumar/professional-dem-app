@@ -735,8 +735,17 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
             
             return demo_output
         
-        # Run aster2asp with better error handling
-        aster2asp_cmd = f"aster2asp {extract_dir}/*.tif -o {asp_output_dir}/asp"
+        # Find TIF files explicitly (avoid wildcard issues)
+        tif_files = glob.glob(os.path.join(extract_dir, "*.tif"))
+        if not tif_files:
+            st.error("No TIF files found in extracted directory")
+            return None
+        
+        st.info(f"Found {len(tif_files)} TIF files: {[os.path.basename(f) for f in tif_files[:5]]}{'...' if len(tif_files) > 5 else ''}")
+        
+        # Use proper aster2asp syntax - pass files individually or use directory
+        # Try directory approach first (most common)
+        aster2asp_cmd = f"aster2asp {extract_dir} -o {asp_output_dir}/asp"
         st.code(f"Running: {aster2asp_cmd}")
         
         # Set up environment for ASP tools
@@ -748,29 +757,42 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         result = subprocess.run(aster2asp_cmd, shell=True, capture_output=True, text=True, timeout=1800, env=env)
         
         if result.returncode != 0:
-            st.error(f"❌ aster2asp failed with return code: {result.returncode}")
-            st.error(f"**Error output:**\n```\n{result.stderr}\n```")
-            if result.stdout:
-                st.info(f"**Standard output:**\n```\n{result.stdout}\n```")
+            st.warning("⚠️ Directory approach failed, trying individual file approach...")
+            st.info(f"**Error with directory approach:**\n```\n{result.stderr}\n```")
             
-            # Try to diagnose the issue
-            st.info("🔍 **Diagnostic Information:**")
+            # Try with individual files as fallback
+            tif_files_str = " ".join([f'"{f}"' for f in tif_files])
+            aster2asp_cmd_alt = f"aster2asp {tif_files_str} -o {asp_output_dir}/asp"
+            st.code(f"Trying: {aster2asp_cmd_alt}")
             
-            # Check if ASP tools are accessible
-            asp_check = subprocess.run("which aster2asp", shell=True, capture_output=True, text=True)
-            if asp_check.returncode == 0:
-                st.success(f"✅ aster2asp found at: {asp_check.stdout.strip()}")
+            result = subprocess.run(aster2asp_cmd_alt, shell=True, capture_output=True, text=True, timeout=1800, env=env)
+            
+            if result.returncode != 0:
+                st.error(f"❌ aster2asp failed with both approaches. Return code: {result.returncode}")
+                st.error(f"**Error output:**\n```\n{result.stderr}\n```")
+                if result.stdout:
+                    st.info(f"**Standard output:**\n```\n{result.stdout}\n```")
+                
+                # Try to diagnose the issue
+                st.info("🔍 **Diagnostic Information:**")
+                
+                # Check if ASP tools are accessible
+                asp_check = subprocess.run("which aster2asp", shell=True, capture_output=True, text=True)
+                if asp_check.returncode == 0:
+                    st.success(f"✅ aster2asp found at: {asp_check.stdout.strip()}")
+                else:
+                    st.error("❌ aster2asp not found in PATH")
+                
+                # Check library dependencies
+                ldd_check = subprocess.run("ldd $(which aster2asp) | grep 'not found'", shell=True, capture_output=True, text=True)
+                if ldd_check.stdout:
+                    st.error(f"❌ Missing libraries:\n```\n{ldd_check.stdout}\n```")
+                else:
+                    st.success("✅ All required libraries found")
+                
+                return None
             else:
-                st.error("❌ aster2asp not found in PATH")
-            
-            # Check library dependencies
-            ldd_check = subprocess.run("ldd $(which aster2asp) | grep 'not found'", shell=True, capture_output=True, text=True)
-            if ldd_check.stdout:
-                st.error(f"❌ Missing libraries:\n```\n{ldd_check.stdout}\n```")
-            else:
-                st.success("✅ All required libraries found")
-            
-            return None
+                st.success("✅ Individual file approach worked!")
         
         st.success("✅ ASTER to ASP conversion completed")
         
