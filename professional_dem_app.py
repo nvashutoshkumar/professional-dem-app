@@ -650,49 +650,38 @@ def process_end_to_end(uploaded_files, resolution, merge_option, coreg_method, v
         st.error(f"❌ End-to-end processing failed: {str(e)}")
 
 def run_asp_processing(file_path, output_dir, resolution, coord_system, algorithm, subpixel, filter_mode):
-    """Run ASP processing - cloud deployment ready"""
+    """Run ASP processing using EXACT same logic as working script - cloud adapted"""
     try:
         # Check for required dependencies
         if not RASTERIO_AVAILABLE:
             st.error("🚫 Rasterio not available. This is required for DEM processing.")
             st.info("This is likely due to GDAL installation issues in the cloud environment.")
             return None
+        
         zip_filename = os.path.basename(file_path)
         base_name = os.path.splitext(zip_filename)[0]
         
-        # Create session-specific working directory
-        work_dir = os.path.join(output_dir, "asp_work")
-        os.makedirs(work_dir, exist_ok=True)
+        # Use same directory structure as working script (cloud-adapted)
+        work_dir = output_dir  # Cloud temp directory
         
         st.info("🔄 Extracting ASTER L1A data...")
         
-        # Extract zip file
-        extract_dir = os.path.join(work_dir, "extracted")
+        # Step 1: Extract ASTER data (EXACT same as working script)
+        extract_dir = os.path.join(work_dir, f"{base_name}_extracted")
         os.makedirs(extract_dir, exist_ok=True)
         
         with zipfile.ZipFile(file_path, 'r') as zip_ref:
             zip_ref.extractall(extract_dir)
         
-        # Find the actual extracted directory (like in working script)
-        extracted_dirs = [d for d in os.listdir(extract_dir) if os.path.isdir(os.path.join(extract_dir, d))]
-        if extracted_dirs:
-            actual_extract_dir = os.path.join(extract_dir, extracted_dirs[0])
-            st.info(f"Found extracted subdirectory: {extracted_dirs[0]}")
-        else:
-            actual_extract_dir = extract_dir
+        # Files are directly in the extracted directory (no subdirectory)
+        aster_dir = extract_dir
         
-        # Find TIF files in the actual extracted directory
-        tif_files = glob.glob(os.path.join(actual_extract_dir, "*.tif"))
-        if not tif_files:
-            st.error("No TIF files found in zip archive")
-            return None
+        st.success(f"✅ Extracted to {extract_dir}")
         
-        st.success(f"✅ Extracted {len(tif_files)} TIF files")
-        
-        # Step 1: Convert to ASP format
+        # Step 2: Convert to ASP format (EXACT same as working script)
         st.info("🔄 Converting ASTER to ASP format...")
-        asp_output_dir = os.path.join(work_dir, "asp")
-        os.makedirs(asp_output_dir, exist_ok=True)
+        asp_output_prefix = os.path.join(work_dir, f"{base_name}_asp", "out")
+        os.makedirs(os.path.dirname(asp_output_prefix), exist_ok=True)
         
         # Determine coordinate system
         if coord_system == "Auto (Local UTM)":
@@ -753,7 +742,8 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         
         # Use proper aster2asp syntax - pass files individually or use directory
         # Try directory approach first (most common)
-        aster2asp_cmd = f"aster2asp {actual_extract_dir} -o {asp_output_dir}/asp"
+        # Exact tutorial command (same as working script)
+        aster2asp_cmd = f"aster2asp {aster_dir} -o {asp_output_prefix}"
         st.code(f"Running: {aster2asp_cmd}")
         
         # Simple environment setup like your working script
@@ -804,11 +794,16 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         
         st.success("✅ ASTER to ASP conversion completed")
         
-        # Find Band3N and Band3B files and their camera files
-        band3n_files = glob.glob(os.path.join(asp_output_dir, "*Band3N.tif"))
-        band3b_files = glob.glob(os.path.join(asp_output_dir, "*Band3B.tif"))
-        camera3n_files = glob.glob(os.path.join(asp_output_dir, "*Band3N.xml"))
-        camera3b_files = glob.glob(os.path.join(asp_output_dir, "*Band3B.xml"))
+        # Step 3: Find the generated files (EXACT same as working script)
+        asp_dir = os.path.dirname(asp_output_prefix)
+        left_image = glob.glob(os.path.join(asp_dir, "*Band3N.tif"))  # Nadir (left)
+        right_image = glob.glob(os.path.join(asp_dir, "*Band3B.tif"))  # Backward (right)
+        left_camera = glob.glob(os.path.join(asp_dir, "*Band3N.xml"))
+        right_camera = glob.glob(os.path.join(asp_dir, "*Band3B.xml"))
+        
+        if not (left_image and right_image and left_camera and right_camera):
+            st.error("❌ Could not find all required ASP files")
+            return None
         
         if not band3n_files or not band3b_files:
             st.error("Could not find Band3N or Band3B files")
@@ -828,12 +823,13 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         os.makedirs(stereo_dir, exist_ok=True)
         
         # Use the EXACT same stereo command as your working script
-        # stereo {left_image} {right_image} {left_camera} {right_camera} {output_prefix}
-        if not camera3n_files or not camera3b_files:
-            st.error("❌ Camera files are required for stereo processing")
-            return None
+        # Step 4: Run stereo processing with ASTER session (EXACT same as working script)
+        st.info("🛰️ Running stereo processing with ASTER rigorous camera model...")
+        stereo_output_prefix = os.path.join(work_dir, f"{base_name}_stereo", "run")
+        os.makedirs(os.path.dirname(stereo_output_prefix), exist_ok=True)
         
-        stereo_cmd = f"stereo -t aster --stereo-algorithm asp_bm --subpixel-mode 1 {band3n_files[0]} {band3b_files[0]} {camera3n_files[0]} {camera3b_files[0]} {stereo_dir}/stereo"
+        # Exact NASA tutorial parameters for ASTER rigorous camera (same as working script)
+        stereo_cmd = f"stereo -t aster --stereo-algorithm asp_bm --subpixel-mode 1 {left_image[0]} {right_image[0]} {left_camera[0]} {right_camera[0]} {stereo_output_prefix}"
         st.code(f"Running: {stereo_cmd}")
         
         result = subprocess.run(stereo_cmd, shell=True, capture_output=True, text=True, timeout=3600, env=env)
@@ -847,17 +843,18 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         
         st.success("✅ Stereo processing completed")
         
-        # Step 3: Generate DEM
-        st.info("🔄 Generating DEM...")
-        point_cloud = os.path.join(stereo_dir, "stereo-PC.tif")
+        # Step 5: Generate DEM with correct UTM projection (EXACT same as working script)
+        st.info("🗻 Generating DEM with 30m resolution in UTM 43N...")
         
+        # Find point cloud file (same pattern as working script)
+        point_cloud = f"{stereo_output_prefix}-PC.tif"
         if not os.path.exists(point_cloud):
-            st.error("Point cloud file not found")
+            st.error(f"❌ Point cloud not found: {point_cloud}")
             return None
         
-        # Use the EXACT same point2dem command as your working script
-        dem_output = os.path.join(output_dir, f"dem_{base_name}")
-        point2dem_cmd = f"point2dem --tr {resolution} --t_srs 'EPSG:32643' --errorimage {point_cloud}"
+        # Use correct UTM zone for Chandra Basin (EPSG:32643) - same as working script
+        tsrs = 'EPSG:32643'  # UTM Zone 43N for Chandra Basin
+        point2dem_cmd = f"point2dem --tr {resolution} --t_srs '{tsrs}' --errorimage {point_cloud}"
         st.code(f"Running: {point2dem_cmd}")
         
         result = subprocess.run(point2dem_cmd, shell=True, capture_output=True, text=True, timeout=1800, env=env)
@@ -866,14 +863,35 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
             st.error(f"point2dem failed: {result.stderr}")
             return None
         
-        # Find the output DEM (corrected pattern)
-        dem_files = glob.glob(os.path.join(stereo_dir, "*-DEM.tif"))
-        if dem_files:
-            st.success("✅ DEM generation completed")
-            return dem_files[0]
-        else:
-            st.error("Could not find output DEM file")
+        # Step 6: Find and validate DEM file (EXACT same as working script)
+        dem_files = glob.glob(f"{stereo_output_prefix}-DEM.tif")
+        if not dem_files:
+            st.error("❌ No DEM files found")
             return None
+        
+        dem_file = dem_files[0]
+        st.success("✅ DEM generation completed")
+        
+        # Get DEM stats like working script
+        try:
+            with rasterio.open(dem_file) as src:
+                data = src.read(1, masked=True)
+                if not data.mask.all():
+                    max_elev = float(data.max())
+                    min_elev = float(data.min())
+                    st.success(f"📊 **DEM Statistics:**")
+                    st.write(f"- Max elevation: **{max_elev:.1f}m**")
+                    st.write(f"- Min elevation: **{min_elev:.1f}m**")
+                    st.write(f"- File: `{os.path.basename(dem_file)}`")
+                    
+                    if max_elev > 5000:
+                        st.success(f"🏔️ **EXCELLENT!** High elevation preserved (>{max_elev:.0f}m)")
+                    else:
+                        st.warning(f"⚠️ Max elevation ({max_elev:.0f}m) - checking if this is expected")
+        except Exception as e:
+            st.warning(f"Could not read DEM stats: {e}")
+        
+        return dem_file
             
     except subprocess.TimeoutExpired:
         st.error("Processing timed out")
