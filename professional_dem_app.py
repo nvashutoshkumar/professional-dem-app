@@ -673,8 +673,16 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         with zipfile.ZipFile(file_path, 'r') as zip_ref:
             zip_ref.extractall(extract_dir)
         
-        # Find TIF files
-        tif_files = glob.glob(os.path.join(extract_dir, "*.tif"))
+        # Find the actual extracted directory (like in working script)
+        extracted_dirs = [d for d in os.listdir(extract_dir) if os.path.isdir(os.path.join(extract_dir, d))]
+        if extracted_dirs:
+            actual_extract_dir = os.path.join(extract_dir, extracted_dirs[0])
+            st.info(f"Found extracted subdirectory: {extracted_dirs[0]}")
+        else:
+            actual_extract_dir = extract_dir
+        
+        # Find TIF files in the actual extracted directory
+        tif_files = glob.glob(os.path.join(actual_extract_dir, "*.tif"))
         if not tif_files:
             st.error("No TIF files found in zip archive")
             return None
@@ -745,7 +753,7 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         
         # Use proper aster2asp syntax - pass files individually or use directory
         # Try directory approach first (most common)
-        aster2asp_cmd = f"aster2asp {extract_dir} -o {asp_output_dir}/asp"
+        aster2asp_cmd = f"aster2asp {actual_extract_dir} -o {asp_output_dir}/asp"
         st.code(f"Running: {aster2asp_cmd}")
         
         # Simple environment setup like your working script
@@ -770,26 +778,29 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
                 if result.stdout:
                     st.info(f"**Standard output:**\n```\n{result.stdout}\n```")
                 
-                # Try to diagnose the issue
-                st.info("🔍 **Diagnostic Information:**")
-                
-                # Check if ASP tools are accessible
-                asp_check = subprocess.run("which aster2asp", shell=True, capture_output=True, text=True)
-                if asp_check.returncode == 0:
-                    st.success(f"✅ aster2asp found at: {asp_check.stdout.strip()}")
-                else:
-                    st.error("❌ aster2asp not found in PATH")
-                
-                # Check library dependencies
-                ldd_check = subprocess.run("ldd $(which aster2asp) | grep 'not found'", shell=True, capture_output=True, text=True)
-                if ldd_check.stdout:
-                    st.error(f"❌ Missing libraries:\n```\n{ldd_check.stdout}\n```")
-                else:
-                    st.success("✅ All required libraries found")
-                
-                return None
-            else:
-                st.success("✅ Individual file approach worked!")
+                        # Try to diagnose the issue
+        st.info("🔍 **Diagnostic Information:**")
+        
+        # Check ASP tool availability and versions
+        try:
+            aster2asp_check = subprocess.run("which aster2asp", shell=True, capture_output=True, text=True)
+            st.code(f"aster2asp location: {aster2asp_check.stdout.strip()}")
+            
+            version_check = subprocess.run("aster2asp --version", shell=True, capture_output=True, text=True)
+            st.code(f"aster2asp version: {version_check.stdout.strip()}")
+            
+            # Check extracted directory contents
+            st.code(f"Extracted directory contents: {os.listdir(extract_dir)}")
+            
+            # Check if there's a subdirectory
+            subdirs = [d for d in os.listdir(extract_dir) if os.path.isdir(os.path.join(extract_dir, d))]
+            if subdirs:
+                st.code(f"Subdirectories found: {subdirs}")
+                subdir_path = os.path.join(extract_dir, subdirs[0])
+                st.code(f"Contents of {subdirs[0]}: {os.listdir(subdir_path)}")
+        except Exception as e:
+            st.error(f"Diagnostic check failed: {e}")
+            return None
         
         st.success("✅ ASTER to ASP conversion completed")
         
@@ -822,7 +833,7 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
             st.error("❌ Camera files are required for stereo processing")
             return None
         
-        stereo_cmd = f"stereo {band3n_files[0]} {band3b_files[0]} {camera3n_files[0]} {camera3b_files[0]} {stereo_dir}/stereo -t aster --stereo-algorithm asp_bm --subpixel-mode 1"
+        stereo_cmd = f"stereo -t aster --stereo-algorithm asp_bm --subpixel-mode 1 {band3n_files[0]} {band3b_files[0]} {camera3n_files[0]} {camera3b_files[0]} {stereo_dir}/stereo"
         st.code(f"Running: {stereo_cmd}")
         
         result = subprocess.run(stereo_cmd, shell=True, capture_output=True, text=True, timeout=3600, env=env)
@@ -846,7 +857,7 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         
         # Use the EXACT same point2dem command as your working script
         dem_output = os.path.join(output_dir, f"dem_{base_name}")
-        point2dem_cmd = f"point2dem {point_cloud} -o {dem_output} --tr {resolution} --t_srs EPSG:4326"
+        point2dem_cmd = f"point2dem --tr {resolution} --t_srs 'EPSG:32643' --errorimage {point_cloud}"
         st.code(f"Running: {point2dem_cmd}")
         
         result = subprocess.run(point2dem_cmd, shell=True, capture_output=True, text=True, timeout=1800, env=env)
@@ -855,8 +866,8 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
             st.error(f"point2dem failed: {result.stderr}")
             return None
         
-        # Find the output DEM
-        dem_files = glob.glob(f"{dem_output}*DEM.tif")
+        # Find the output DEM (corrected pattern)
+        dem_files = glob.glob(os.path.join(stereo_dir, "*-DEM.tif"))
         if dem_files:
             st.success("✅ DEM generation completed")
             return dem_files[0]
