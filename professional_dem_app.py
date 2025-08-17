@@ -796,25 +796,54 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
         
         st.success("✅ ASTER to ASP conversion completed")
         
-        # Find Band3N and Band3B files
+        # Find Band3N and Band3B files and their camera files
         band3n_files = glob.glob(os.path.join(asp_output_dir, "*Band3N.tif"))
         band3b_files = glob.glob(os.path.join(asp_output_dir, "*Band3B.tif"))
+        camera3n_files = glob.glob(os.path.join(asp_output_dir, "*Band3N.xml"))
+        camera3b_files = glob.glob(os.path.join(asp_output_dir, "*Band3B.xml"))
         
         if not band3n_files or not band3b_files:
             st.error("Could not find Band3N or Band3B files")
             return None
+        
+        if not camera3n_files or not camera3b_files:
+            st.warning("⚠️ Camera files not found - stereo processing may have issues")
+            st.info(f"Looking for camera files in: {asp_output_dir}")
+            all_files = glob.glob(os.path.join(asp_output_dir, "*"))
+            st.info(f"Available files: {[os.path.basename(f) for f in all_files]}")
+        else:
+            st.success(f"✅ Found camera files: {os.path.basename(camera3n_files[0])}, {os.path.basename(camera3b_files[0])}")
         
         # Step 2: Run stereo processing
         st.info("🔄 Running stereo processing...")
         stereo_dir = os.path.join(work_dir, "stereo")
         os.makedirs(stereo_dir, exist_ok=True)
         
-        stereo_cmd = f"stereo -t aster --stereo-algorithm {algorithm} --subpixel-mode {subpixel} {band3n_files[0]} {band3b_files[0]} {stereo_dir}/stereo"
+        # Build stereo command with proper parameters
+        stereo_cmd = f"stereo {band3n_files[0]} {band3b_files[0]} {stereo_dir}/stereo -t aster --stereo-algorithm {algorithm} --subpixel-mode {subpixel}"
+        st.code(f"Running: {stereo_cmd}")
+        
         result = subprocess.run(stereo_cmd, shell=True, capture_output=True, text=True, timeout=3600, env=env)
         
         if result.returncode != 0:
-            st.error(f"Stereo processing failed: {result.stderr}")
-            return None
+            st.error(f"❌ Stereo processing failed with return code: {result.returncode}")
+            st.error(f"**Error output:**\n```\n{result.stderr}\n```")
+            if result.stdout:
+                st.info(f"**Standard output:**\n```\n{result.stdout}\n```")
+            
+            # Try with simpler parameters as fallback
+            st.warning("⚠️ Trying with simplified stereo parameters...")
+            stereo_cmd_simple = f"stereo {band3n_files[0]} {band3b_files[0]} {stereo_dir}/stereo"
+            st.code(f"Trying: {stereo_cmd_simple}")
+            
+            result = subprocess.run(stereo_cmd_simple, shell=True, capture_output=True, text=True, timeout=3600, env=env)
+            
+            if result.returncode != 0:
+                st.error(f"❌ Stereo processing failed with simplified parameters too")
+                st.error(f"**Error output:**\n```\n{result.stderr}\n```")
+                return None
+            else:
+                st.success("✅ Simplified stereo approach worked!")
         
         st.success("✅ Stereo processing completed")
         
