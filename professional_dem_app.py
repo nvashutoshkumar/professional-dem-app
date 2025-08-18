@@ -805,24 +805,11 @@ def run_asp_processing(file_path, output_dir, resolution, coord_system, algorith
             st.error("❌ Could not find all required ASP files")
             return None
         
-        if not band3n_files or not band3b_files:
-            st.error("Could not find Band3N or Band3B files")
-            return None
-        
-        if not camera3n_files or not camera3b_files:
-            st.warning("⚠️ Camera files not found - stereo processing may have issues")
-            st.info(f"Looking for camera files in: {asp_output_dir}")
-            all_files = glob.glob(os.path.join(asp_output_dir, "*"))
-            st.info(f"Available files: {[os.path.basename(f) for f in all_files]}")
-        else:
-            st.success(f"✅ Found camera files: {os.path.basename(camera3n_files[0])}, {os.path.basename(camera3b_files[0])}")
-        
-        # Step 2: Run stereo processing
-        st.info("🔄 Running stereo processing...")
-        stereo_dir = os.path.join(work_dir, "stereo")
-        os.makedirs(stereo_dir, exist_ok=True)
-        
-        # Use the EXACT same stereo command as your working script
+        st.success(f"✅ Found ASP files:")
+        st.info(f"  Left image: {os.path.basename(left_image[0])}")
+        st.info(f"  Right image: {os.path.basename(right_image[0])}")
+        st.info(f"  Left camera: {os.path.basename(left_camera[0])}")
+        st.info(f"  Right camera: {os.path.basename(right_camera[0])}")
         # Step 4: Run stereo processing with ASTER session (EXACT same as working script)
         st.info("🛰️ Running stereo processing with ASTER rigorous camera model...")
         stereo_output_prefix = os.path.join(work_dir, f"{base_name}_stereo", "run")
