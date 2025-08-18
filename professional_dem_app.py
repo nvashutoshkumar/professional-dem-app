@@ -79,15 +79,35 @@ def run_stereo_processing(left_image, right_image, left_camera, right_camera, ou
     st.code(f"Running: {cmd}")
     
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        # Set up environment for headless operation (cloud deployment)
+        env = os.environ.copy()
+        env['DISPLAY'] = ':99'
+        env['QT_QPA_PLATFORM'] = 'offscreen'
+        env['LIBGL_ALWAYS_INDIRECT'] = '1'
+        
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, env=env, timeout=3600)
         if result.returncode == 0:
             st.success("✅ Stereo processing completed successfully!")
             return True
         else:
-            st.error(f"❌ Stereo processing failed with error: {result.stderr}")
+            st.error(f"❌ Stereo processing failed with return code: {result.returncode}")
+            st.error(f"**Error output:**\n```\n{result.stderr}\n```")
             if result.stdout:
                 st.info(f"**Standard output:**\n```\n{result.stdout}\n```")
+            
+            # Add diagnostic information
+            st.info("🔍 **Diagnostic Information:**")
+            st.code(f"Command: {cmd}")
+            st.code(f"Left image exists: {os.path.exists(left_image)}")
+            st.code(f"Right image exists: {os.path.exists(right_image)}")
+            st.code(f"Left camera exists: {os.path.exists(left_camera)}")
+            st.code(f"Right camera exists: {os.path.exists(right_camera)}")
+            st.code(f"Output directory exists: {os.path.exists(os.path.dirname(output_prefix))}")
+            
             return False
+    except subprocess.TimeoutExpired:
+        st.error("❌ Stereo processing timed out (>1 hour)")
+        return False
     except Exception as e:
         st.error(f"❌ Error running stereo: {e}")
         return False
