@@ -120,7 +120,6 @@ def run_stereo_processing(left_image, right_image, left_camera, right_camera, ou
                     st.code(f"ASP version: {asp_version.stdout.strip()[:100]}")
                 
                 # Check file details
-                import os
                 st.code(f"Left image size: {os.path.getsize(left_image)/(1024*1024):.1f} MB")
                 st.code(f"Right image size: {os.path.getsize(right_image)/(1024*1024):.1f} MB")
                 
