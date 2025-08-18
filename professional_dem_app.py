@@ -118,9 +118,44 @@ def run_stereo_processing(left_image, right_image, left_camera, right_camera, ou
                 st.code(f"ASP version check: {asp_version.returncode == 0}")
                 if asp_version.stdout:
                     st.code(f"ASP version: {asp_version.stdout.strip()[:100]}")
+                
+                # Check file details
+                import os
+                st.code(f"Left image size: {os.path.getsize(left_image)/(1024*1024):.1f} MB")
+                st.code(f"Right image size: {os.path.getsize(right_image)/(1024*1024):.1f} MB")
+                
+                # Try basic gdalinfo on images
+                gdalinfo_left = subprocess.run(f"gdalinfo {left_image}", shell=True, capture_output=True, text=True)
+                st.code(f"Left image readable by GDAL: {gdalinfo_left.returncode == 0}")
+                
+                # Check available memory and disk space
+                memory_check = subprocess.run("free -h", shell=True, capture_output=True, text=True)
+                if memory_check.stdout:
+                    st.code(f"Memory: {memory_check.stdout.split()[7]} available")
+                
+                disk_check = subprocess.run("df -h /tmp", shell=True, capture_output=True, text=True)
+                if disk_check.stdout:
+                    lines = disk_check.stdout.strip().split('\n')
+                    if len(lines) > 1:
+                        st.code(f"Disk space: {lines[1].split()[3]} available in /tmp")
                     
             except Exception as e:
                 st.code(f"Environment check failed: {e}")
+            
+            # Try a simpler stereo command as fallback
+            st.info("🔄 Trying simplified stereo command...")
+            simple_cmd = f"stereo {left_image} {right_image} {left_camera} {right_camera} {output_prefix}"
+            st.code(f"Fallback command: {simple_cmd}")
+            
+            try:
+                simple_result = subprocess.run(simple_cmd, shell=True, capture_output=True, text=True, env=env, timeout=1800)
+                if simple_result.returncode == 0:
+                    st.success("✅ Simplified stereo command worked!")
+                    return True
+                else:
+                    st.error(f"❌ Simplified stereo also failed: {simple_result.stderr[:200]}")
+            except Exception as e:
+                st.error(f"❌ Simplified stereo error: {e}")
             
             return False
     except subprocess.TimeoutExpired:
