@@ -104,6 +104,24 @@ def run_stereo_processing(left_image, right_image, left_camera, right_camera, ou
             st.code(f"Right camera exists: {os.path.exists(right_camera)}")
             st.code(f"Output directory exists: {os.path.exists(os.path.dirname(output_prefix))}")
             
+            # Check display and ASP environment
+            try:
+                display_check = subprocess.run("echo $DISPLAY", shell=True, capture_output=True, text=True)
+                st.code(f"DISPLAY variable: {display_check.stdout.strip()}")
+                
+                xvfb_check = subprocess.run("ps aux | grep Xvfb | grep -v grep", shell=True, capture_output=True, text=True)
+                st.code(f"Xvfb running: {'Yes' if xvfb_check.returncode == 0 else 'No'}")
+                if xvfb_check.stdout:
+                    st.code(f"Xvfb process: {xvfb_check.stdout.strip()}")
+                
+                asp_version = subprocess.run("stereo --version", shell=True, capture_output=True, text=True)
+                st.code(f"ASP version check: {asp_version.returncode == 0}")
+                if asp_version.stdout:
+                    st.code(f"ASP version: {asp_version.stdout.strip()[:100]}")
+                    
+            except Exception as e:
+                st.code(f"Environment check failed: {e}")
+            
             return False
     except subprocess.TimeoutExpired:
         st.error("❌ Stereo processing timed out (>1 hour)")

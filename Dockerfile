@@ -27,7 +27,11 @@ RUN apt-get update && apt-get install -y \
     libsm6 \
     libxrender1 \
     libgl1-mesa-glx \
+    libgl1-mesa-dri \
     libglu1-mesa \
+    mesa-utils \
+    libosmesa6 \
+    libosmesa6-dev \
     libxi6 \
     libxrandr2 \
     libxss1 \
@@ -95,7 +99,7 @@ ENV OPENTOPOGRAPHY_API_KEY=523da07408e277366b4b10399fc41d99
 EXPOSE 8501
 
 # Create startup script with virtual display
-RUN echo '#!/bin/bash\n# Start virtual display\nXvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &\n# Wait for display to start\nsleep 2\n# Start Streamlit\nstreamlit run professional_dem_app.py --server.port=${PORT:-8501} --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false' > /app/start.sh && chmod +x /app/start.sh
+RUN echo '#!/bin/bash\n# Start virtual display with proper settings\nXvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset > /dev/null 2>&1 &\n# Wait for display to start\nsleep 3\n# Verify display is running\necho "Display :99 status:"\nps aux | grep Xvfb | grep -v grep\n# Start Streamlit\nstreamlit run professional_dem_app.py --server.port=${PORT:-8501} --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false' > /app/start.sh && chmod +x /app/start.sh
 
 # Run the application
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
